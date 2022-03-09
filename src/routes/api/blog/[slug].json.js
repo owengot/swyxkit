@@ -1,4 +1,4 @@
-import { getContent } from '$lib/content';
+import { getCategory } from '$lib/content';
 
 /**
  * @type {import('@sveltejs/kit').RequestHandler}
@@ -7,7 +7,7 @@ export async function get({ params }) {
 	const { slug } = params;
 	let data;
 	try {
-		data = await getContent(slug);
+		data = await getCategory(slug);
 		return {
 			body: JSON.stringify(data),
 			headers: {

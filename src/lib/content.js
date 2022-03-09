@@ -2,7 +2,7 @@ import { compile } from 'mdsvex';
 import { dev } from '$app/env';
 import grayMatter from 'gray-matter';
 import fetch from 'node-fetch';
-import { GH_USER_REPO } from './siteConfig';
+import { GH_USER_REPO, DISCOURSE_BASE } from './siteConfig';
 import parse from 'parse-link-header';
 import slugify from 'slugify';
 
@@ -28,6 +28,14 @@ const publishedTags = ['Published'];
 let allBlogposts = [];
 // let etag = null // todo - implmement etag header
 ``;
+export async function getCategory(slug) {
+	const fetchResponse = await fetch(`${DISCOURSE_BASE}/categories.json`);
+	const response = await fetchResponse.json();
+	const categories = response.category_list.categories;
+	const category = categories.filter(x => x.slug == slug)[0];
+	return category;
+}
+
 export async function listContent() {
 	// use a diff var so as to not have race conditions while fetching
 	// TODO: make sure to handle this better when doing etags or cache restore
