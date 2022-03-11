@@ -50,19 +50,6 @@ import 'tippy.js/dist/tippy.css'; // optional for styling
 
   
 	onMount(async () => {
-	    const { defineCustomElements } = await import('@vime/core');
-    defineCustomElements();
-    showPlayer = true;
-
-		var elem = document.querySelector('.grid');
-		var msnry = new Masonry(elem, {
-			// options
-			itemSelector: '.module',
-			columnWidth: '.module-sizer',
-			percentPosition: true,
-			gutter: 33.33,
-			percentPosition: true,
-		});
 		tippy('.square', {
 			content(reference) {
 				const title = reference.getAttribute('data-title');
@@ -206,22 +193,8 @@ import 'tippy.js/dist/tippy.css'; // optional for styling
 			<div style="display: block; height: 340px">
 
 {#if showPlayer}
-{#each json.topics.videos as item, i}
-<vm-player bind:this={player} autoplay muted style="--vm-player-theme: #1873d3">
-	<vm-youtube video-id="{item}"></vm-youtube>
-	<vm-ui>
-		<vm-click-to-play />
-	
-		<vm-controls pin="bottomLeft" active-duration="2750" full-width>
-		  <vm-volume-control />
-		  <vm-time-progress />
-		  <vm-control-spacer />
-		  <vm-caption-control />
-		  <vm-fullscreen-control keys="f" tooltip-direction="left" />
-		</vm-controls>
-	  </vm-ui>
-</vm-player>
-{/each}
+{JSON.stringify( json.topics.videos)}
+
 
 {/if}
 </div>
