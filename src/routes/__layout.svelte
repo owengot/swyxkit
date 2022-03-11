@@ -7,19 +7,12 @@
 	import Nav from '../components/Nav.svelte';
 </script>
 
-<svelte:head>
-	<link
-		rel="alternate"
-		type="application/rss+xml"
-		title={'RSS Feed for ' + SITE_TITLE}
-		href="/rss.xml"
-	/>
-</svelte:head>
+<svelte:head />
 
 <div class="flex flex-col justify-center bg-gray-50 px-4 dark:bg-gray-900 sm:px-8">
 	<Nav />
 </div>
-<main class="flex flex-col justify-center bg-gray-50 px-4 dark:bg-gray-900 sm:px-8">
+<main class="flex w-full flex-col justify-center">
 	<slot />
 </main>
 
@@ -30,9 +23,6 @@
 			<a class="text-gray-500 transition hover:text-gray-300" href="/">Home</a>
 			<a class="text-gray-500 transition hover:text-gray-300" href="/about">About</a>
 			<a class="text-gray-500 transition hover:text-gray-300" href="/#newsletter">Newsletter</a>
-			<a class="text-gray-500 transition hover:text-gray-300" href="/api/rss.xml" rel="external">
-				RSS
-			</a>
 		</div>
 		<div class="flex flex-col space-y-4">
 			<a
@@ -61,7 +51,7 @@
 			</a>
 		</div>
 	</div>
-	<p class="prose px-4 dark:prose-invert sm:px-8">
+	<p class="prose dark:prose-invert px-4 sm:px-8">
 		This blog is based on the
 		<a href="https://swyxkit.netlify.app/">swyxkit</a>
 		template.

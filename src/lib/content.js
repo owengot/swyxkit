@@ -6,11 +6,24 @@ import { GH_USER_REPO, DISCOURSE_BASE } from './siteConfig';
 import parse from 'parse-link-header';
 import slugify from 'slugify';
 
+import remarkFrontmatter from 'remark-frontmatter';
+import parseFrontmatter from 'remark-parse-yaml';
 import rehypeStringify from 'rehype-stringify';
 import rehypeSlug from 'rehype-slug';
 import rehypeAutoLink from 'rehype-autolink-headings';
+import YAML from 'yaml';
 
-const remarkPlugins = undefined;
+import MarkdownIt from "markdown-it";
+md = new MarkdownIt({
+	html: true,
+	xhtmlOut: true,
+	linkify: true
+  });
+import { JSDOM } from 'jsdom'
+
+import { it } from 'date-fns/locale';
+
+const remarkPlugins = [remarkFrontmatter, parseFrontmatter];
 const rehypePlugins = [
 	rehypeStringify,
 	rehypeSlug,
@@ -33,7 +46,217 @@ export async function getCategory(slug) {
 	const response = await fetchResponse.json();
 	const categories = response.category_list.categories;
 	const category = categories.filter(x => x.slug == slug)[0];
-	return category;
+
+	var obj = {
+		meta: category,
+		topics: await getTopics(slug)
+	}
+	return obj;
+}
+
+export async function getTopics(slug) {
+	const fetchResponse = await fetch(`${DISCOURSE_BASE}/c/${slug}.json`);
+	const response = await fetchResponse.json();
+	const topics = response.topic_list.topics;
+	const pinned = topics.filter(x => x.pinned);
+	const events = topics.filter(x => x.tags.includes('event'));
+	const news = topics.filter(x => x.tags.includes('news'));
+	const survey = topics.filter(x => x.tags.includes('notion'));
+	const people = topics.filter(x => x.tags.includes('profiles'));
+	const videos = topics.filter(x => x.tags.includes('video')).map(x => x.id);
+	var videoPosts = await getVideos(videos);
+	console.log(videoPosts);
+	var profiles = "";
+	if (people[0]) {
+		profiles = await getProfiles(people[0]["id"])
+	}
+	const surveyResponse = await getSurvey(survey[0]["id"])
+
+	return {
+		pinned: pinned,
+		profiles: profiles,
+		events: events,
+		videos: videoPosts,
+		news: news,
+		survey: surveyResponse
+	};
+}
+
+export async function getVideos(items) {
+
+	async function getData(data){
+		const arrOfPromises = data.map(item => fetch(`${DISCOURSE_BASE}/raw/${item}`).then(result => result.text())
+		);
+		return Promise.all(arrOfPromises);
+	}
+	function parseYoutube(post){
+	
+		var rx = /((?:youtube\.com|youtu.be))(\/(?:[\w\-]+\?v=|embed\/|v\/)?)([a-zA-Z0-9_-]{6,11})/m;
+
+
+
+	return post.match(rx)[3];
+
+			
+	}
+
+var array = await getData(items).then(data => data.map(x => parseYoutube(x)));
+
+
+return array;
+
+
+}
+
+export async function getPost(slug) {
+	const topicResponse = await fetch(`${DISCOURSE_BASE}/t/${slug}.json`);
+	const topic = await topicResponse.json();
+
+	const textResponse = await fetch(`${DISCOURSE_BASE}/raw/${slug}`);
+	const text = await textResponse.text();
+	var regex = /^!\[(.*)\]\((.+)\)/g
+
+	const clean = text.replace(regex, '');
+	const content = md.render(clean)
+	var html = content;
+
+	const doc = new JSDOM("<body>" + html + "</body>", {
+		contentType: "application/xml"
+	  });
+	var main = doc.window.document.querySelector('body').childNodes;
+
+	var array = Array.prototype.slice.call(main);
+
+      var json = array.map((x) => x.outerHTML).filter(function(e){return e});;
+
+	var obj = {
+		meta: topic,
+		text: clean,
+		content: await createViews(json)
+	}
+	return obj;
+}
+
+async function createViews(array) {
+
+	var views = [];
+
+	function getAttributes(element) {
+		var attrs = element.attributes;
+		var obj = {};
+		for (var i = attrs.length - 1; i >= 0; i--) {
+		  var attrname = attrs[i].name;
+		  var attrvalue = attrs[i].value;
+		  if (attrvalue == "true") {
+			obj[attrname] = true;
+		  } else if (attrvalue == "false") {
+			obj[attrname] = false;
+		  } else {
+			obj[attrname] = attrvalue;
+		  }
+		}
+		return obj;
+	  }
+
+	for (var x = 0; x < array.length; x++) {
+		const dom = new JSDOM("<body>" + array[x] + "</body>", {
+			contentType: "application/xml"
+		  });
+		  const document = dom.window.document;
+		  const body = document.querySelector("body");
+		  const element = body.firstChild;
+const name = element.nodeName.toLowerCase();
+		  if (name == "strong" || name == "#text" || name == "p" || name == "ul") {
+			var obj = {
+				type: "text",
+				content: array[x]
+			}
+			views.push(obj)
+		}
+
+		if (name == "h1" || name == "h2" || name == "h3" || name == "h4") {
+			var obj = {
+				type: "title",
+				content: array[x]
+			}
+			views.push(obj)
+		}
+
+		if (name == "newsletter") {
+			var obj = {
+				type: "newsletter",
+				content: array[x]
+			}
+			views.push(obj)
+		}
+		if (name == "form") {
+			var config = getAttributes(element);
+			var entries = await getNotion(config.notion);
+			var obj = {
+				type: "form",
+				config: getAttributes(element),
+				entries: entries[0].properties
+			}
+			views.push(obj)
+		}
+	}
+
+	return views
+}
+async function getProfiles(id) {
+	const fetchResponse = await fetch(`${DISCOURSE_BASE}/raw/${id}`);
+	const response = await fetchResponse.text();
+	var code = response.match(/```([^`]*)```/);
+
+	var yaml = YAML.parseAllDocuments('---' + code[1] + '---')[0];
+	var obj = {
+		text: response.replace(/\n/g, '').replace(/```([^`]*)```/, ''),
+		yaml: yaml
+	}
+	if (code) {
+		return obj
+	} else {
+		return false;
+	}
+}
+
+export async function getSurvey(id) {
+	const fetchResponse = await fetch(`${DISCOURSE_BASE}/raw/${id}`);
+	const response = await fetchResponse.text();
+	var code = response.match(/```([^`]*)```/);
+
+	var yaml = YAML.parseAllDocuments('---' + code[1] + '---')[0];
+	var obj = {
+		text: response.replace(/\n/g, '').replace(/```([^`]*)```/, ''),
+		yaml: yaml,
+		entries: await getNotion(yaml.notion)
+	}
+	if (code) {
+		return obj
+	} else {
+		return false;
+	}
+}
+
+
+export async function getNotion(id) {
+	var myHeaders = new Headers();
+	myHeaders.append("Authorization", "Bearer secret_aKya6jGPHZpUBWuu1GJHwEpyKGf9bkCmfC9anhvS8oN");
+	myHeaders.append("Content-Type", "application/json");
+	myHeaders.append("Notion-Version", "2021-05-13");
+
+	var raw = "";
+
+	var requestOptions = {
+		method: 'POST',
+		headers: myHeaders,
+		body: raw,
+		redirect: 'follow'
+	};
+
+	const fetchResponse = await fetch(`https://api.notion.com/v1/databases/0567adcc91f84fbaa94e609bac1d1d1c/query`, requestOptions);
+	const response = await fetchResponse.json();
+	return response.results
 }
 
 export async function listContent() {
